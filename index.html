@@ -3,211 +3,147 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MARATHON // TACTICAL_OS</title>
+    <title>Stock Scanner Pro - High Stability</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
     <style>
-        :root { --teal: #00d4ff; --pink: #ff79c6; --carbon: #0b0e14; --panel: #161b22; --border: #30363d; --gold: #ffb86c; }
-        body { font-family: 'Courier New', monospace; background: var(--carbon); color: #e0e0e0; padding: 10px; text-transform: uppercase; font-size: 11px; }
-        .container { max-width: 600px; margin: auto; }
-        .nav-tabs { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
-        .tab { flex: 1; padding: 10px; text-align: center; background: #000; border: 1px solid var(--border); color: #666; cursor: pointer; min-width: 80px; }
-        .tab.active { border-color: var(--teal); color: var(--teal); border-bottom: 2px solid var(--teal); }
-        .page { display: none; } .page.active { display: block; }
-        .card { background: var(--panel); padding: 15px; border: 1px solid var(--border); margin-bottom: 10px; }
-        .label { font-size: 0.6rem; color: var(--pink); font-weight: bold; display: block; margin-bottom: 5px; }
-        .val { font-size: 1.4rem; font-weight: bold; color: var(--teal); }
-        select, button, input { background: #000; color: var(--teal); border: 1px solid var(--border); padding: 10px; width: 100%; margin-top: 5px; font-family: inherit; box-sizing: border-box; }
-        button { background: var(--teal); color: #000; font-weight: bold; cursor: pointer; border: none; }
-        .item-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid #222; }
-        .loc-tag { color: var(--gold); font-size: 9px; display: block; margin-top: 3px; }
-        .obj-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid #222; }
-        .completed { text-decoration: line-through; color: #444; }
-        .del-btn { background: #333; color: #fff; padding: 0 8px; cursor: pointer; margin-left: 10px; border: 1px solid #555; }
+        :root { --primary: #1a5a30; --accent: #2e7d32; }
+        body { font-family: -apple-system, sans-serif; max-width: 800px; margin: 0 auto; padding: 10px; background: #f4f7f6; color: #333; }
+        .card { background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 1rem; }
+        h1 { color: var(--primary); margin: 0 0 1rem 0; text-align: center; font-size: 1.5rem; }
+        #camera-wrapper { width: 100%; background: #000; border-radius: 8px; overflow: hidden; position: relative; margin-bottom: 1rem; border: 2px solid #ddd; }
+        video { width: 100%; display: block; }
+        .cam-controls { display: flex; gap: 10px; margin-bottom: 1rem; }
+        .btn { flex: 1; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; }
+        .btn-snap { background: var(--primary); }
+        .btn-process { background: #007bff; width: 100%; margin-top: 10px; }
+        .btn:disabled { background: #ccc; opacity: 0.6; }
+        .progress-container { width: 100%; background: #eee; border-radius: 10px; height: 12px; margin: 1rem 0; display: none; overflow: hidden; }
+        #progress-bar { height: 100%; background: var(--accent); width: 0%; transition: width 0.3s; }
+        #status { margin: 10px 0; padding: 10px; border-radius: 6px; font-size: 0.85rem; text-align: center; display: none; min-height: 40px; }
+        #gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 1rem; }
+        .barcode-card { background: white; padding: 10px; border-radius: 8px; border: 1px solid #ddd; text-align: center; }
+        .barcode-card svg { width: 100%; height: auto; }
+        .stats-row { display: flex; justify-content: space-around; font-size: 0.85rem; margin-bottom: 10px; font-weight: bold; }
+        canvas { display: none; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="nav-tabs">
-        <div class="tab active" onclick="showPage('combat')">TACTICAL_OS</div>
-        <div class="tab" onclick="showPage('loot')">LOOT_FINDER</div>
-        <div class="tab" onclick="showPage('contracts')">CONTRACTS</div>
+<div class="card">
+    <h1>Stock Scanner Pro</h1>
+    <div id="camera-wrapper"><video id="video" autoplay playsinline></video></div>
+    <div class="stats-row">
+        <div>Photos: <span id="q-count">0</span></div>
+        <div>Unique UPCs: <span id="u-count">0</span></div>
     </div>
-
-    <div id="combat" class="page active">
-        <div class="card">
-            <label class="label">RUNNER_SHELL</label>
-            <select id="shell-select">
-                <option value="Vandal">VANDAL // AGILITY</option>
-                <option value="Triage">TRIAGE // ENERGY</option>
-                <option value="Assassin">ASSASSIN // STEALTH</option>
-                <option value="Destroyer">DESTROYER // TANK</option>
-                <option value="Recon">RECON // INTEL</option>
-                <option value="Thief">THIEF // ECONOMY</option>
-                <option value="Rook">ROOK // ZERO-RISK</option>
-            </select>
-            <label class="label" style="margin-top:10px;">PRIMARY_WEAPON</label>
-            <select id="weapon-select">
-                <option value="WSTR Shotgun">WSTR SHOTGUN</option>
-                <option value="BRRT SMG">BRRT SMG</option>
-                <option value="Ares Railgun">ARES RAILGUN</option>
-            </select>
-            <button onclick="runSync()" style="margin-top:15px;">INITIALIZE_SYNC</button>
-        </div>
-        <div class="card">
-            <div id="sync-status" class="val">AWAITING_LINK</div>
-            <div id="advice-text" style="color:#8b949e; margin-top:10px; font-size:10px;">Hardware detected. Ready for analysis.</div>
-        </div>
+    <div class="cam-controls">
+        <button class="btn btn-snap" id="snapBtn">📸 Snap Page</button>
+        <button class="btn" style="background:#666" id="switchBtn">🔄 Switch</button>
     </div>
-
-    <div id="loot" class="page">
-        <div class="card">
-            <label class="label">HIGH_VALUE_OBJECTS</label>
-            <select id="loot-picker" onchange="addLoot()">
-                <option value="">-- SELECT TARGET OBJECT --</option>
-                <option value="Prestige Key">PRESTIGE KEY (25,000c)</option>
-                <option value="Bio-Core">BIO-CORE (22,000c)</option>
-                <option value="Anomalous Plasma">ANOMALOUS PLASMA (18,000c)</option>
-                <option value="Pangea Kit">PANGEA KIT (15,000c)</option>
-                <option value="Memory Shard">MEMORY SHARD (12,000c)</option>
-                <option value="Encrypted Data">ENCRYPTED DATA (10,000c)</option>
-                <option value="Unstable Core">UNSTABLE CORE (7,000c)</option>
-                <option value="Advanced Patch">ADVANCED PATCH (4,500c)</option>
-                <option value="Data Card">DATA CARD (2,500c)</option>
-            </select>
-            <div id="backpack" style="margin-top:15px;"></div>
-            <div style="border-top: 2px solid var(--gold); margin-top:10px; padding-top:10px; text-align:right;">
-                <span class="label">SESSION_TOTAL</span>
-                <div id="total-val" class="val" style="color:var(--gold)">0 C</div>
-            </div>
-        </div>
-    </div>
-
-    <div id="contracts" class="page">
-        <div class="card">
-            <label class="label">FACTION_MISSION_LOG</label>
-            <select id="faction-select" onchange="updateContracts()">
-                <option value="CyberAcme">CYBERACME (ECONOMY)</option>
-                <option value="NuCaloric">NUCALORIC (SURVIVAL)</option>
-                <option value="Traxus">TRAXUS (WEAPONS)</option>
-                <option value="Arachne">ARACHNE (PVP)</option>
-                <option value="MIDA">MIDA (SABOTAGE)</option>
-                <option value="Sekiguchi">SEKIGUCHI (BIOTECH)</option>
-            </select>
-            <div id="contract-display" style="margin-top:15px;"></div>
-        </div>
-    </div>
+    <div class="progress-container" id="pBox"><div id="progress-bar"></div></div>
+    <div id="status"></div>
+    <button class="btn btn-process" id="processBtn" disabled>📄 Process All & Generate</button>
 </div>
 
+<div id="gallery"></div>
+<canvas id="tempCanvas"></canvas>
+
 <script>
-    // Full Data Tables
-    const weaponTable = {
-        "WSTR Shotgun": "Shot", "BRRT SMG": "SMG", "Ares Railgun": "Rail", 
-        "Hardline PR": "Prec", "Longshot Sniper": "Snip", "Overrun AR": "AR",
-        "V75 Scar": "Ener", "M77 Assault": "AR", "Bully SMG": "SMG",
-        "Twin Tap HBR": "Prec", "V22 Volt Thrower": "SMG", "Zeus Rail": "Rail"
-    };
+    const video = document.getElementById('video');
+    const snapBtn = document.getElementById('snapBtn');
+    const processBtn = document.getElementById('processBtn');
+    const qCount = document.getElementById('q-count');
+    const uCount = document.getElementById('u-count');
+    const progressBar = document.getElementById('progress-bar');
+    const pBox = document.getElementById('pBox');
+    const status = document.getElementById('status');
+    const gallery = document.getElementById('gallery');
 
-    const lootData = {
-        "Prestige Key": { v: 25000, l: "High-Security Vaults (Columns/Perimeter)" },
-        "Bio-Core": { v: 22000, l: "Sekiguchi Pods (Southern Flight)" },
-        "Anomalous Plasma": { v: 18000, l: "Reactor Core (The Core)" },
-        "Pangea Kit": { v: 15000, l: "NuCaloric Labs (South Columns)" },
-        "Memory Shard": { v: 12000, l: "Enemy Runner Drops (PvP Hotspots)" },
-        "Encrypted Data": { v: 10000, l: "Traxus Centers (Dire Marsh)" },
-        "Unstable Core": { v: 7000, l: "UESC Security Bots (High-Sec)" },
-        "Advanced Patch": { v: 4500, l: "NuCaloric Med-Crates (General)" },
-        "Data Card": { v: 2500, l: "Terminals / Office Desks" }
-    };
+    let photoQueue = [];
+    let currentFacingMode = "environment";
 
-    const factionMissions = {
-        "CyberAcme": ["Scan FTL Array (Radio Tower)", "Sabotage Comms Antenna (Relay Station)", "Extract 5 Data Cards"],
-        "NuCaloric": ["Retrieve NuCal ID (Infested Columns)", "Activate DCON Rooftop Terminal", "Extract with 100% Oxygen"],
-        "Traxus": ["Hack UESC Terminal (Dire Marsh)", "Scan 5 Traxus Containers", "Down 5 Runners with an SMG"],
-        "Arachne": ["Deal 100 Damage to Runners", "Down an enemy Runner", "Extract a Memory Shard"],
-        "MIDA": ["Smash 20 Glass Panels", "Defeat 15 UESC Units", "Extract 3 EMP Detonators"],
-        "Sekiguchi": ["Inject Necrotic Sample (Flight Control)", "Scan your shell in SE orientation", "Extract a Bio-Core"]
-    };
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode, width: { ideal: 1920 } } })
+        .then(s => video.srcObject = s);
 
-    let backpack = [];
+    document.getElementById('switchBtn').addEventListener('click', () => {
+        currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode } }).then(s => video.srcObject = s);
+    });
 
-    // Force Initialization
-    function init() {
-        // Build Weapons Dropdown
-        const wSel = document.getElementById('weapon-select');
-        wSel.innerHTML = ""; 
-        Object.keys(weaponTable).sort().forEach(w => {
-            let opt = document.createElement('option');
-            opt.value = w; opt.text = w;
-            wSel.add(opt);
+    snapBtn.addEventListener('click', () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        photoQueue.push(canvas.toDataURL('image/jpeg', 0.85));
+        qCount.textContent = photoQueue.length;
+        processBtn.disabled = false;
+        video.style.opacity = 0.5; setTimeout(() => video.style.opacity = 1, 100);
+    });
+
+    processBtn.addEventListener('click', async () => {
+        processBtn.disabled = snapBtn.disabled = true;
+        pBox.style.display = 'block';
+        gallery.innerHTML = "";
+        const uniqueUpcs = new Set();
+
+        for (let i = 0; i < photoQueue.length; i++) {
+            updateStatus(`Analyzing Page ${i + 1} of ${photoQueue.length}...`, "#e3f2fd", "#0d47a1");
+            
+            // CRITICAL FIX: Create a fresh worker for every single page to avoid memory leaks
+            const worker = await Tesseract.createWorker('eng');
+            await worker.setParameters({ tessedit_char_whitelist: '0123456789' });
+            
+            const ret = await worker.recognize(photoQueue[i]);
+            const matches = ret.data.text.match(/\d{7,13}/g) || [];
+            matches.forEach(m => uniqueUpcs.add(m));
+            
+            await worker.terminate(); // Kill worker immediately after use
+            
+            // Small cooldown to let the UI thread breathe
+            await new Promise(r => setTimeout(r, 200));
+
+            progressBar.style.width = ((i + 1) / photoQueue.length) * 100 + "%";
+            uCount.textContent = uniqueUpcs.size;
+        }
+
+        if (uniqueUpcs.size > 0) generateOutput([...uniqueUpcs]);
+        updateStatus(`Finished! Found ${uniqueUpcs.size} unique codes.`, "#e8f5e9", "#1b5e20");
+        
+        photoQueue = [];
+        qCount.textContent = "0";
+        snapBtn.disabled = false;
+    });
+
+    function generateOutput(codes) {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF();
+        let y = 20;
+        codes.forEach(code => {
+            let ean = code.padStart(12, '0').substring(0, 12);
+            const card = document.createElement('div');
+            card.className = 'barcode-card';
+            const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            card.appendChild(svg);
+            gallery.appendChild(card);
+            try {
+                JsBarcode(svg, ean, { format: "EAN13", width: 2, height: 40, displayValue: true });
+                const canvas = document.getElementById('tempCanvas');
+                JsBarcode(canvas, ean, { format: "EAN13", width: 2, height: 40 });
+                if (y > 260) { pdf.addPage(); y = 20; }
+                pdf.addImage(canvas.toDataURL(), 'PNG', 20, y, 50, 25);
+                y += 35;
+            } catch (e) {}
         });
-
-        // Initialize Contracts
-        updateContracts();
+        pdf.save("Scanned_Barcodes.pdf");
     }
 
-    function showPage(id) {
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        document.getElementById(id).classList.add('active');
-        event.currentTarget.classList.add('active');
+    function updateStatus(msg, bg, color) {
+        status.textContent = msg; status.style.display = 'block';
+        status.style.background = bg; status.style.color = color;
     }
-
-    function runSync() {
-        const shell = document.getElementById('shell-select').value;
-        const weapon = document.getElementById('weapon-select').value;
-        const type = weaponTable[weapon];
-        let syn = 60;
-        if(shell === "Vandal" && (type === "SMG" || type === "Shot")) syn = 95;
-        if(shell === "Rook") syn = 100;
-        document.getElementById('sync-status').innerText = syn + "% SYNC";
-    }
-
-    function addLoot() {
-        const item = document.getElementById('loot-picker').value;
-        if(!item) return;
-        backpack.push({ n: item, ...lootData[item] });
-        renderLoot();
-    }
-
-    function renderLoot() {
-        const bpDiv = document.getElementById('backpack');
-        let total = 0;
-        bpDiv.innerHTML = "";
-        backpack.forEach((item, i) => {
-            total += item.v;
-            bpDiv.innerHTML += `
-                <div class="item-row">
-                    <div><strong>${item.n}</strong><br><span class="loc-tag">LOC: ${item.l}</span></div>
-                    <div style="display:flex; align-items:center;">
-                        <span>${item.v}c</span>
-                        <div class="del-btn" onclick="removeLoot(${i})">X</div>
-                    </div>
-                </div>`;
-        });
-        document.getElementById('total-val').innerText = total.toLocaleString() + " C";
-    }
-
-    function removeLoot(index) {
-        backpack.splice(index, 1);
-        renderLoot();
-    }
-
-    function updateContracts() {
-        const f = document.getElementById('faction-select').value;
-        const disp = document.getElementById('contract-display');
-        disp.innerHTML = `<label class="label">ACTIVE OBJECTIVES: ${f}</label>`;
-        factionMissions[f].forEach(obj => {
-            disp.innerHTML += `
-                <div class="obj-row">
-                    <input type="checkbox" onchange="this.nextElementSibling.classList.toggle('completed')">
-                    <span>${obj}</span>
-                </div>`;
-        });
-    }
-
-    // Run immediately and on load
-    init();
-    window.onload = init;
 </script>
 </body>
 </html>
