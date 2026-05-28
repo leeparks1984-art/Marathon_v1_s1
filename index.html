@@ -2,12 +2,19 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>EPI Creon Companion</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    
+    <style>
+        /* Force native interactive elements to accept touch events everywhere */
+        input[type="range"], textarea, button {
+            pointer-events: auto !important;
+            touch-action: manipulation !important;
+        }
+    </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen font-sans antialiased">
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans antialiased selective-user-select-none">
 
     <div class="max-w-md mx-auto p-4 space-y-6">
         
@@ -44,7 +51,7 @@
         <section class="bg-slate-800/80 rounded-2xl p-4 border border-slate-700 shadow-xl overflow-hidden relative">
             <h2 class="text-sm font-semibold text-slate-300 tracking-wide uppercase mb-3">2a. Scan Product Barcode</h2>
             
-            <div id="interactive-scanner" class="rounded-xl overflow-hidden bg-slate-950 border border-slate-800"></div>
+            <div id="interactive-scanner" class="rounded-xl overflow-hidden bg-slate-950 border border-slate-800 min-h-[50px]"></div>
             
             <div class="flex space-x-2 mt-3">
                 <button id="startBtn" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold py-2 px-4 rounded-xl transition duration-150 shadow-lg shadow-emerald-900/20">
@@ -115,8 +122,8 @@
             </div>
         </section>
 
-        <div id="statusMessage" class="text-center text-xs text-slate-400 px-4">
-            System initialization successful. Ready to scan or configure parameters.
+        <div id="statusMessage" class="text-center text-xs text-slate-400 px-4 py-2 rounded-xl transition-all duration-200 bg-slate-950/30 border border-slate-800">
+            System initializing hardware binds...
         </div>
 
         <footer class="bg-slate-950/40 rounded-xl p-3 border border-slate-800/60 text-[10px] text-slate-400 leading-relaxed text-center">
@@ -125,234 +132,223 @@
         </footer>
     </div>
 
+    <script src="https://unpkg.com/html5-qrcode" async defer></script>
+
     <script>
-        // Hardcoded API Key Configuration Profile
-        const GEMINI_API_KEY = "AIzaSyDjkLtOzixkAnwcf41DkMogOF1aBTl0vbo";
+        // Self-Executing Enclosed Scope to protect the runtime environment
+        (function() {
+            const GEMINI_API_KEY = "AIzaSyDjkLtOzixkAnwcf41DkMogOF1aBTl0vbo";
 
-        // DOM element hooks
-        const ratioRange = document.getElementById('ratioRange');
-        const ratioDisplay = document.getElementById('ratioDisplay');
-        const portionRange = document.getElementById('portionRange');
-        const portionDisplay = document.getElementById('portionDisplay');
-        const startBtn = document.getElementById('startBtn');
-        const stopBtn = document.getElementById('stopBtn');
-        const resultCard = document.getElementById('resultCard');
-        const statusMessage = document.getElementById('statusMessage');
-        
-        const labelProductName = document.getElementById('productName');
-        const labelProductBarcode = document.getElementById('productBarcode');
-        const labelFatVal = document.getElementById('fatVal');
-        const labelCarbVal = document.getElementById('carbVal');
-        const labelProteinVal = document.getElementById('proteinVal');
-        const labelCreonDose = document.getElementById('creonDose');
-        const sourceBadge = document.getElementById('sourceBadge');
+            let html5QrcodeScanner = null;
+            let baseFat100g = 0;
+            let baseCarbs100g = 0;
+            let baseProtein100g = 0;
 
-        // AI specific UI hooks
-        const mealInput = document.getElementById('mealInput');
-        const aiEstimateBtn = document.getElementById('aiEstimateBtn');
+            function setupHooks() {
+                const ratioRange = document.getElementById('ratioRange');
+                const ratioDisplay = document.getElementById('ratioDisplay');
+                const portionRange = document.getElementById('portionRange');
+                const portionDisplay = document.getElementById('portionDisplay');
+                const startBtn = document.getElementById('startBtn');
+                const stopBtn = document.getElementById('stopBtn');
+                const aiEstimateBtn = document.getElementById('aiEstimateBtn');
+                const mealInput = document.getElementById('mealInput');
+                const statusMessage = document.getElementById('statusMessage');
+                const resultCard = document.getElementById('resultCard');
 
-        // Global application instance variables stored per 100g baseline
-        let html5QrcodeScanner = null;
-        let baseFat100g = 0;
-        let baseCarbs100g = 0;
-        let baseProtein100g = 0;
+                if (!ratioRange || !portionRange || !statusMessage) return;
 
-        // Dynamic ratio slider tracking implementation
-        ratioRange.addEventListener('input', (e) => {
-            ratioDisplay.textContent = `${e.target.value}g`;
-            calculateNutritionAndDose();
-        });
-
-        // Dynamic portion size slider tracking implementation
-        portionRange.addEventListener('input', (e) => {
-            portionDisplay.textContent = `${e.target.value}g`;
-            calculateNutritionAndDose();
-        });
-
-        // Initialize and lock instance setup for the barcode camera engine
-        function initScanner() {
-            if (html5QrcodeScanner === null) {
-                html5QrcodeScanner = new Html5Qrcode("interactive-scanner");
-            }
-        }
-
-        startBtn.addEventListener('click', () => {
-            initScanner();
-            statusMessage.textContent = "Requesting system hardware permissions...";
-            statusMessage.className = "text-center text-xs text-amber-400 font-medium";
-
-            html5QrcodeScanner.start(
-                { facingMode: "environment" },
-                {
-                    fps: 15,
-                    qrbox: (width, height) => {
-                        return { width: Math.floor(width * 0.85), height: Math.floor(height * 0.4) };
-                    }
-                },
-                onScanSuccess,
-                onScanFailure
-            )
-            .then(() => {
-                statusMessage.textContent = "Camera streaming live. Position barcode within target area.";
-                statusMessage.className = "text-center text-xs text-emerald-400 font-medium";
-            })
-            .catch(err => {
-                statusMessage.textContent = `Camera Initialization Error: ${err.message || err}`;
-                statusMessage.className = "text-center text-xs text-rose-400 font-semibold";
-            });
-        });
-
-        stopBtn.addEventListener('click', () => {
-            if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
-                html5QrcodeScanner.stop().then(() => {
-                    statusMessage.textContent = "Camera streams successfully safely terminated.";
-                    statusMessage.className = "text-center text-xs text-slate-500";
-                });
-            }
-        });
-
-        function triggerSuccessAudio() {
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioCtx.createOscillator();
-                const gainNode = audioCtx.createGain();
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(1200, audioCtx.currentTime); 
-                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                oscillator.connect(gainNode);
-                gainNode.connect(audioCtx.destination);
-                oscillator.start();
-                oscillator.stop(audioCtx.currentTime + 0.08);
-            } catch (audioErr) {
-                // Safely handle browser audio policies
-            }
-        }
-
-        function onScanSuccess(decodedText, decodedResult) {
-            triggerSuccessAudio();
-            statusMessage.textContent = `Barcode isolated: ${decodedText}. Fetching database matrix...`;
-            statusMessage.className = "text-center text-xs text-amber-400 font-medium";
-            fetchProductData(decodedText);
-        }
-
-        function onScanFailure(error) {}
-
-        async function fetchProductData(barcode) {
-            const url = `https://world.openfoodfacts.org/api/v2/product/${barcode}.json`;
-
-            try {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error("Server communication fault.");
-
-                const data = await response.json();
-
-                if (data.status === 1 || data.product) {
-                    const product = data.product;
-                    const nutriments = product.nutriments || {};
-
-                    baseFat100g = nutriments.fat_100g !== undefined ? parseFloat(nutriments.fat_100g) : (nutriments.fat_value !== undefined ? parseFloat(nutriments.fat_value) : 0);
-                    baseCarbs100g = nutriments.carbohydrates_100g !== undefined ? parseFloat(nutriments.carbohydrates_100g) : (nutriments.carbohydrates_value !== undefined ? parseFloat(nutriments.carbohydrates_value) : 0);
-                    baseProtein100g = nutriments.proteins_100g !== undefined ? parseFloat(nutriments.proteins_100g) : (nutriments.proteins_value !== undefined ? parseFloat(nutriments.proteins_value) : 0);
-
-                    labelProductName.textContent = product.product_name || "Unknown Product Profile";
-                    labelProductBarcode.textContent = `Barcode: ${barcode}`;
-
-                    sourceBadge.textContent = "Barcode Database";
-                    sourceBadge.className = "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider";
-
+                // Sliders input handling logic
+                ratioRange.addEventListener('input', function(e) {
+                    if (ratioDisplay) ratioDisplay.textContent = e.target.value + "g";
                     calculateNutritionAndDose();
-                    
-                    resultCard.classList.remove('hidden');
-                    statusMessage.textContent = "Product analysis complete.";
-                    statusMessage.className = "text-center text-xs text-emerald-400 font-medium";
-                } else {
-                    statusMessage.textContent = `Product profile not found in open database registry [Code: ${barcode}].`;
-                    statusMessage.className = "text-center text-xs text-rose-400 font-semibold";
-                    resultCard.classList.add('hidden');
-                }
-            } catch (err) {
-                statusMessage.textContent = `Network Query Error: Check internet connection.`;
-                statusMessage.className = "text-center text-xs text-rose-400 font-semibold";
-            }
-        }
-
-        // Gemini AI Meal Query Handler with Diagnostics
-        aiEstimateBtn.addEventListener('click', async () => {
-            const mealDescription = mealInput.value.trim();
-
-            if (!mealDescription) {
-                statusMessage.textContent = "Input Required: Please describe what meal you are eating.";
-                statusMessage.className = "text-center text-xs text-rose-400 font-semibold";
-                return;
-            }
-
-            statusMessage.textContent = "Consulting Gemini AI engine models...";
-            statusMessage.className = "text-center text-xs text-purple-400 font-medium animate-pulse";
-            aiEstimateBtn.disabled = true;
-
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-            
-            const prompt = `You are a professional nutrition estimation engine for pancreatic enzyme therapy guidance. 
-            Analyze this full meal description carefully: "${mealDescription}".
-            Estimate the total macro nutritional values (in grams) contained across the whole complete meal.
-            Provide your response strictly as a JSON object matching this schema blueprint:
-            {
-                "meal_name": "A refined, clear title of the meal",
-                "estimated_fat_g": total_fat_as_number,
-                "estimated_carbs_g": total_carbohydrates_as_number,
-                "estimated_protein_g": total_protein_as_number
-            }
-            Do not include any markdown format blocks, backticks, or extra commentary. Return only the raw JSON object string.`;
-
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: { responseMimeType: "application/json" }
-                    })
                 });
 
-                // Deep Diagnostic Check
-                if (!response.ok) {
-                    let deepReason = `HTTP Error ${response.status}`;
-                    try {
-                        const errorPayload = await response.json();
-                        if (errorPayload.error && errorPayload.error.message) {
-                            deepReason += `: ${errorPayload.error.message}`;
+                portionRange.addEventListener('input', function(e) {
+                    if (portionDisplay) portionDisplay.textContent = e.target.value + "g";
+                    calculateNutritionAndDose();
+                });
+
+                // Camera Start Handler
+                if (startBtn) {
+                    startBtn.addEventListener('click', function() {
+                        if (typeof Html5Qrcode === 'undefined') {
+                            statusMessage.textContent = "Error: Camera module still downloading or blocked by editor sandbox.";
+                            statusMessage.className = "text-center text-xs text-rose-400 font-semibold";
+                            return;
                         }
-                    } catch (jsonErr) {
-                        // Response wasn't readable JSON
-                    }
-                    throw new Error(deepReason);
+                        
+                        try {
+                            if (!html5QrcodeScanner) {
+                                html5QrcodeScanner = new Html5Qrcode("interactive-scanner");
+                            }
+                            
+                            statusMessage.textContent = "Requesting system hardware permissions...";
+                            statusMessage.className = "text-center text-xs text-amber-400 font-medium";
+
+                            html5QrcodeScanner.start(
+                                { facingMode: "environment" },
+                                {
+                                    fps: 15,
+                                    qrbox: function(w, h) { return { width: Math.floor(w * 0.85), height: Math.floor(h * 0.4) }; }
+                                },
+                                onScanSuccess,
+                                function() {}
+                            )
+                            .then(function() {
+                                statusMessage.textContent = "Camera live. Point at food barcode standard.";
+                                statusMessage.className = "text-center text-xs text-emerald-400 font-medium";
+                            })
+                            .catch(function(err) {
+                                statusMessage.textContent = "Camera Error: Open app in Chrome/Safari browser to allow lens permissions.";
+                                statusMessage.className = "text-center text-xs text-rose-400 font-semibold";
+                            });
+                        } catch(e) {
+                            statusMessage.textContent = "Hardware error: " + e.message;
+                        }
+                    });
                 }
 
-                const resData = await response.json();
-                const jsonText = resData.candidates[0].content.parts[0].text;
-                const parsedNutrition = JSON.parse(jsonText);
+                if (stopBtn) {
+                    stopBtn.addEventListener('click', function() {
+                        if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
+                            html5QrcodeScanner.stop().then(function() {
+                                statusMessage.textContent = "Camera stream closed safely.";
+                                statusMessage.className = "text-center text-xs text-slate-400";
+                            });
+                        }
+                    });
+                }
 
-                baseFat100g = parseFloat(parsedNutrition.estimated_fat_g || 0);
-                baseCarbs100g = parseFloat(parsedNutrition.estimated_carbs_g || 0);
-                baseProtein100g = parseFloat(parsedNutrition.estimated_protein_g || 0);
+                function onScanSuccess(text) {
+                    statusMessage.textContent = "Barcode found: " + text + ". Processing request...";
+                    statusMessage.className = "text-center text-xs text-amber-400 font-medium";
+                    fetchProductData(text);
+                }
 
-                labelProductName.textContent = parsedNutrition.meal_name || "AI Analyzed Meal";
-                labelProductBarcode.textContent = "Source: Gemini Intelligent Profile";
-                
-                sourceBadge.textContent = "Gemini AI";
-                sourceBadge.className = "bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider";
+                async function fetchProductData(barcode) {
+                    try {
+                        const response = await fetch("https://world.openfoodfacts.org/api/v2/product/" + barcode + ".json");
+                        if (!response.ok) throw new Error();
+                        const data = await response.json();
 
-                portionRange.value = 100;
-                portionDisplay.textContent = "100g";
+                        if (data.status === 1 || data.product) {
+                            const p = data.product;
+                            const n = p.nutriments || {};
 
-                triggerSuccessAudio();
-                calculateNutritionAndDose();
-                
-                resultCard.classList.remove('hidden');
-                statusMessage.textContent = "AI Meal profiling complete.";
-                statusMessage.className = "text-center text-xs text-purple-400 font-medium";
+                            baseFat100g = parseFloat(n.fat_100g || n.fat_value || 0);
+                            baseCarbs100g = parseFloat(n.carbohydrates_100g || n.carbohydrates_value || 0);
+                            baseProtein100g = parseFloat(n.proteins_100g || n.proteins_value || 0);
 
-            } catch (err) {
-                // Prints Google's exact diagnostic statement inside the layout view directly
-                statusMessage.textContent = `AI Engine Fault: ${err.message}`;
-        
+                            document.getElementById('productName').textContent = p.product_name || "Unknown Item";
+                            document.getElementById('productBarcode').textContent = "Barcode: " + barcode;
+                            
+                            const sb = document.getElementById('sourceBadge');
+                            sb.textContent = "Database Match";
+                            sb.className = "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider";
+
+                            calculateNutritionAndDose();
+                            resultCard.classList.remove('hidden');
+                            statusMessage.textContent = "Database query complete.";
+                            statusMessage.className = "text-center text-xs text-emerald-400 font-medium";
+                        } else {
+                            statusMessage.textContent = "Item not found in database registry.";
+                            statusMessage.className = "text-center text-xs text-rose-400 font-semibold";
+                        }
+                    } catch(e) {
+                        statusMessage.textContent = "Network Error: Open outside of editor preview pane.";
+                    }
+                }
+
+                // AI Processing Action Block
+                if (aiEstimateBtn) {
+                    aiEstimateBtn.addEventListener('click', async function() {
+                        const desc = mealInput ? mealInput.value.trim() : "";
+                        if (!desc) {
+                            statusMessage.textContent = "Please enter a meal description first.";
+                            statusMessage.className = "text-center text-xs text-rose-400 font-semibold";
+                            return;
+                        }
+
+                        statusMessage.textContent = "Consulting Gemini AI Engine...";
+                        statusMessage.className = "text-center text-xs text-purple-400 font-medium animate-pulse";
+                        aiEstimateBtn.disabled = true;
+
+                        const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + GEMINI_API_KEY;
+                        const prompt = `Analyze: "${desc}". Estimate macro values in grams across the full meal. Respond strictly with this JSON structural template: {"meal_name": "Name", "estimated_fat_g": number, "estimated_carbs_g": number, "estimated_protein_g": number}. No block markdown tags, no backticks, no commentary.`;
+
+                        try {
+                            const response = await fetch(url, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    contents: [{ parts: [{ text: prompt }] }],
+                                    generationConfig: { responseMimeType: "application/json" }
+                                })
+                            });
+
+                            if (!response.ok) throw new Error("API rejection or invalid access key configuration.");
+
+                            const resData = await response.json();
+                            const rawText = resData.candidates[0].content.parts[0].text;
+                            const parsed = JSON.parse(rawText);
+
+                            baseFat100g = parseFloat(parsed.estimated_fat_g || 0);
+                            baseCarbs100g = parseFloat(parsed.estimated_carbs_g || 0);
+                            baseProtein100g = parseFloat(parsed.estimated_protein_g || 0);
+
+                            document.getElementById('productName').textContent = parsed.meal_name || "AI Meal Estimation";
+                            document.getElementById('productBarcode').textContent = "Source: Artificial Intelligence Profile";
+                            
+                            const sb = document.getElementById('sourceBadge');
+                            sb.textContent = "Gemini AI";
+                            sb.className = "bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider";
+
+                            portionRange.value = 100;
+                            if (portionDisplay) portionDisplay.textContent = "100g";
+
+                            calculateNutritionAndDose();
+                            resultCard.classList.remove('hidden');
+                            statusMessage.textContent = "AI Analysis applied successfully.";
+                            statusMessage.className = "text-center text-xs text-purple-400 font-medium";
+                        } catch (err) {
+                            statusMessage.textContent = "AI Error: Network blocked by environment sandbox rules.";
+                            statusMessage.className = "text-center text-xs text-rose-400 font-semibold";
+                        } finally {
+                            aiEstimateBtn.disabled = false;
+                        }
+                    });
+                }
+
+                function calculateNutritionAndDose() {
+                    const ratio = parseInt(ratioRange.value) || 12;
+                    const weight = parseInt(portionRange.value) || 100;
+
+                    const fat = (baseFat100g / 100) * weight;
+                    const carb = (baseCarbs100g / 100) * weight;
+                    const prot = (baseProtein100g / 100) * weight;
+
+                    if (document.getElementById('fatVal')) document.getElementById('fatVal').textContent = fat.toFixed(1) + "g";
+                    if (document.getElementById('carbVal')) document.getElementById('carbVal').textContent = carb.toFixed(1) + "g";
+                    if (document.getElementById('proteinVal')) document.getElementById('proteinVal').textContent = prot.toFixed(1) + "g";
+
+                    const doseDisplay = document.getElementById('creonDose');
+                    if (doseDisplay) {
+                        doseDisplay.textContent = fat <= 0 ? "0" : Math.max(1, Math.round(fat / ratio));
+                    }
+                }
+
+                statusMessage.textContent = "System operational. Switch to Chrome/Safari if inputs are frozen.";
+                statusMessage.className = "text-center text-xs text-emerald-400 font-medium";
+            }
+
+            // Fallback initialization pipeline sequence
+            if (document.readyState === "complete" || document.readyState === "interactive") {
+                setupHooks();
+            } else {
+                document.addEventListener("DOMContentLoaded", setupHooks);
+            }
+        })();
+    </script>
+</body>
+</html>
