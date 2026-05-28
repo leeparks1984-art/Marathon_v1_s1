@@ -3,147 +3,347 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stock Scanner Pro - High Stability</title>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    
-    <style>
-        :root { --primary: #1a5a30; --accent: #2e7d32; }
-        body { font-family: -apple-system, sans-serif; max-width: 800px; margin: 0 auto; padding: 10px; background: #f4f7f6; color: #333; }
-        .card { background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 1rem; }
-        h1 { color: var(--primary); margin: 0 0 1rem 0; text-align: center; font-size: 1.5rem; }
-        #camera-wrapper { width: 100%; background: #000; border-radius: 8px; overflow: hidden; position: relative; margin-bottom: 1rem; border: 2px solid #ddd; }
-        video { width: 100%; display: block; }
-        .cam-controls { display: flex; gap: 10px; margin-bottom: 1rem; }
-        .btn { flex: 1; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; }
-        .btn-snap { background: var(--primary); }
-        .btn-process { background: #007bff; width: 100%; margin-top: 10px; }
-        .btn:disabled { background: #ccc; opacity: 0.6; }
-        .progress-container { width: 100%; background: #eee; border-radius: 10px; height: 12px; margin: 1rem 0; display: none; overflow: hidden; }
-        #progress-bar { height: 100%; background: var(--accent); width: 0%; transition: width 0.3s; }
-        #status { margin: 10px 0; padding: 10px; border-radius: 6px; font-size: 0.85rem; text-align: center; display: none; min-height: 40px; }
-        #gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 1rem; }
-        .barcode-card { background: white; padding: 10px; border-radius: 8px; border: 1px solid #ddd; text-align: center; }
-        .barcode-card svg { width: 100%; height: auto; }
-        .stats-row { display: flex; justify-content: space-around; font-size: 0.85rem; margin-bottom: 10px; font-weight: bold; }
-        canvas { display: none; }
-    </style>
+    <title>EPI Creon Companion</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
-<body>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans antialiased">
 
-<div class="card">
-    <h1>Stock Scanner Pro</h1>
-    <div id="camera-wrapper"><video id="video" autoplay playsinline></video></div>
-    <div class="stats-row">
-        <div>Photos: <span id="q-count">0</span></div>
-        <div>Unique UPCs: <span id="u-count">0</span></div>
+    <div class="max-w-md mx-auto p-4 space-y-6">
+        
+        <header class="text-center py-4 border-b border-slate-800">
+            <h1 class="text-2xl font-bold tracking-tight text-emerald-400">EPI Creon Companion</h1>
+            <p class="text-xs text-slate-400 mt-1">Barcode Nutrition Scanner & Dosage Guideline</p>
+        </header>
+
+        <section class="bg-slate-800/80 rounded-2xl p-4 border border-slate-700 shadow-xl space-y-4">
+            <h2 class="text-sm font-semibold text-slate-300 tracking-wide uppercase">1. Adjust Parameters</h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <label for="ratioRange" class="flex justify-between text-xs text-slate-400 mb-1">
+                        <span>Target Fat per Creon 25,000 Capsule:</span>
+                        <span id="ratioDisplay" class="font-bold text-emerald-400 text-sm">12g</span>
+                    </label>
+                    <input type="range" id="ratioRange" min="5" max="20" value="12" step="1" 
+                           class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                </div>
+
+                <div class="border-t border-slate-700/60 pt-3">
+                    <label for="portionRange" class="flex justify-between text-xs text-slate-400 mb-1">
+                        <span>Your Portion Scale / Weight:</span>
+                        <span id="portionDisplay" class="font-bold text-emerald-400 text-sm">100g</span>
+                    </label>
+                    <input type="range" id="portionRange" min="0" max="500" value="100" step="5" 
+                           class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                    <p class="text-[10px] text-slate-500 mt-1">Note: For manual AI meals, 100g represents 100% of the described plate.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="bg-slate-800/80 rounded-2xl p-4 border border-slate-700 shadow-xl overflow-hidden relative">
+            <h2 class="text-sm font-semibold text-slate-300 tracking-wide uppercase mb-3">2a. Scan Product Barcode</h2>
+            
+            <div id="interactive-scanner" class="rounded-xl overflow-hidden bg-slate-950 border border-slate-800"></div>
+            
+            <div class="flex space-x-2 mt-3">
+                <button id="startBtn" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold py-2 px-4 rounded-xl transition duration-150 shadow-lg shadow-emerald-900/20">
+                    Start Camera
+                </button>
+                <button id="stopBtn" class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-semibold py-2 px-4 rounded-xl transition duration-150">
+                    Stop Camera
+                </button>
+            </div>
+        </section>
+
+        <section class="bg-slate-800/80 rounded-2xl p-4 border border-slate-700 shadow-xl space-y-3">
+            <div class="flex justify-between items-center">
+                <h2 class="text-sm font-semibold text-slate-300 tracking-wide uppercase">2b. Or Describe Meal (Gemini AI)</h2>
+                <span class="bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[9px] font-medium px-2 py-0.5 rounded-full uppercase">Beta Estimation</span>
+            </div>
+
+            <div class="space-y-2">
+                <div>
+                    <label for="apiKeyInput" class="block text-[10px] text-slate-400 mb-1">Gemini API Key (Saved Locally):</label>
+                    <input type="password" id="apiKeyInput" placeholder="AIzaSy..." 
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-purple-500 transition">
+                </div>
+                <div>
+                    <label for="mealInput" class="block text-[10px] text-slate-400 mb-1">What are you eating?</label>
+                    <textarea id="mealInput" rows="2" placeholder="e.g., A plate of 3 pub bangers, mashed potatoes with butter, and onion gravy" 
+                              class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2 text-xs text-slate-200 focus:outline-none focus:border-purple-500 transition resize-none"></textarea>
+                </div>
+                <button id="aiEstimateBtn" class="w-full bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold py-2 px-4 rounded-xl transition duration-150 shadow-lg shadow-purple-900/20">
+                    Analyze Meal Composition
+                </button>
+            </div>
+        </section>
+
+        <section id="resultCard" class="hidden bg-slate-800/80 rounded-2xl p-5 border border-slate-700 shadow-xl space-y-4">
+            <div class="flex justify-between items-start border-b border-slate-700/60 pb-3">
+                <div>
+                    <h3 id="productName" class="text-lg font-bold text-slate-100 leading-tight">Product Title</h3>
+                    <p id="productBarcode" class="text-xs text-slate-400 mt-0.5">Barcode: --</p>
+                </div>
+                <span id="sourceBadge" class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Found
+                </span>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3">
+                <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-center ring-1 ring-amber-500/30">
+                    <span class="block text-[10px] uppercase tracking-wider text-amber-400 font-semibold">Total Fat</span>
+                    <span id="fatVal" class="text-xl font-extrabold text-slate-100 block mt-0.5">0g</span>
+                    <span class="text-[9px] text-amber-500/70 block leading-tight mt-0.5">Calculates Creon</span>
+                </div>
+                <div class="bg-sky-500/10 border border-sky-500/20 rounded-xl p-3 text-center">
+                    <span class="block text-[10px] uppercase tracking-wider text-sky-400 font-semibold">Carbs</span>
+                    <span id="carbVal" class="text-xl font-extrabold text-slate-100 block mt-0.5">0g</span>
+                    <span class="text-[9px] text-sky-500/70 block leading-tight mt-0.5">Track Insulin</span>
+                </div>
+                <div class="bg-purple-500/10 border border-purple-500/20 rounded-xl p-3 text-center">
+                    <span class="block text-[10px] uppercase tracking-wider text-purple-400 font-semibold">Protein</span>
+                    <span id="proteinVal" class="text-xl font-extrabold text-slate-100 block mt-0.5">0g</span>
+                    <span class="text-[9px] text-purple-500/70 block leading-tight mt-0.5">Muscle Matrix</span>
+                </div>
+            </div>
+
+            <div class="bg-gradient-to-br from-emerald-950/40 to-slate-900 border border-emerald-500/30 rounded-xl p-4 flex items-center justify-between shadow-inner">
+                <div>
+                    <h4 class="text-xs font-semibold uppercase text-emerald-400 tracking-wider">Guideline Creon Dose</h4>
+                    <p class="text-[10px] text-slate-400 mt-0.5">Calculated exclusively on custom portion weight</p>
+                </div>
+                <div class="text-right">
+                    <span id="creonDose" class="text-3xl font-black text-emerald-400 tracking-tight">0</span>
+                    <span class="text-xs font-bold text-emerald-500 block">Capsules (25k)</span>
+                </div>
+            </div>
+        </section>
+
+        <div id="statusMessage" class="text-center text-xs text-slate-500 px-4">
+            Camera offline. Ready to scan or configure parameters.
+        </div>
+
+        <footer class="bg-slate-950/40 rounded-xl p-3 border border-slate-800/60 text-[10px] text-slate-400 leading-relaxed text-center">
+            <span class="font-bold text-amber-500 block mb-1">⚠️ IMPORTANT MEDICAL NOTICE</span>
+            Open Food Facts is an open-source database and Gemini outputs are automated neural network estimations. Always verify parsed or estimated macro values manually against verifiable clinical references. Use calculated capsule values solely as a baseline reference tool alongside your specialist dietitian's directives.
+        </footer>
     </div>
-    <div class="cam-controls">
-        <button class="btn btn-snap" id="snapBtn">📸 Snap Page</button>
-        <button class="btn" style="background:#666" id="switchBtn">🔄 Switch</button>
-    </div>
-    <div class="progress-container" id="pBox"><div id="progress-bar"></div></div>
-    <div id="status"></div>
-    <button class="btn btn-process" id="processBtn" disabled>📄 Process All & Generate</button>
-</div>
 
-<div id="gallery"></div>
-<canvas id="tempCanvas"></canvas>
+    <script>
+        // DOM element hooks
+        const ratioRange = document.getElementById('ratioRange');
+        const ratioDisplay = document.getElementById('ratioDisplay');
+        const portionRange = document.getElementById('portionRange');
+        const portionDisplay = document.getElementById('portionDisplay');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const resultCard = document.getElementById('resultCard');
+        const statusMessage = document.getElementById('statusMessage');
+        
+        const labelProductName = document.getElementById('productName');
+        const labelProductBarcode = document.getElementById('productBarcode');
+        const labelFatVal = document.getElementById('fatVal');
+        const labelCarbVal = document.getElementById('carbVal');
+        const labelProteinVal = document.getElementById('proteinVal');
+        const labelCreonDose = document.getElementById('creonDose');
+        const sourceBadge = document.getElementById('sourceBadge');
 
-<script>
-    const video = document.getElementById('video');
-    const snapBtn = document.getElementById('snapBtn');
-    const processBtn = document.getElementById('processBtn');
-    const qCount = document.getElementById('q-count');
-    const uCount = document.getElementById('u-count');
-    const progressBar = document.getElementById('progress-bar');
-    const pBox = document.getElementById('pBox');
-    const status = document.getElementById('status');
-    const gallery = document.getElementById('gallery');
+        // AI specific UI hooks
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        const mealInput = document.getElementById('mealInput');
+        const aiEstimateBtn = document.getElementById('aiEstimateBtn');
 
-    let photoQueue = [];
-    let currentFacingMode = "environment";
+        // Global application instance variables stored per 100g baseline
+        let html5QrcodeScanner = null;
+        let baseFat100g = 0;
+        let baseCarbs100g = 0;
+        let baseProtein100g = 0;
 
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode, width: { ideal: 1920 } } })
-        .then(s => video.srcObject = s);
-
-    document.getElementById('switchBtn').addEventListener('click', () => {
-        currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode } }).then(s => video.srcObject = s);
-    });
-
-    snapBtn.addEventListener('click', () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0);
-        photoQueue.push(canvas.toDataURL('image/jpeg', 0.85));
-        qCount.textContent = photoQueue.length;
-        processBtn.disabled = false;
-        video.style.opacity = 0.5; setTimeout(() => video.style.opacity = 1, 100);
-    });
-
-    processBtn.addEventListener('click', async () => {
-        processBtn.disabled = snapBtn.disabled = true;
-        pBox.style.display = 'block';
-        gallery.innerHTML = "";
-        const uniqueUpcs = new Set();
-
-        for (let i = 0; i < photoQueue.length; i++) {
-            updateStatus(`Analyzing Page ${i + 1} of ${photoQueue.length}...`, "#e3f2fd", "#0d47a1");
-            
-            // CRITICAL FIX: Create a fresh worker for every single page to avoid memory leaks
-            const worker = await Tesseract.createWorker('eng');
-            await worker.setParameters({ tessedit_char_whitelist: '0123456789' });
-            
-            const ret = await worker.recognize(photoQueue[i]);
-            const matches = ret.data.text.match(/\d{7,13}/g) || [];
-            matches.forEach(m => uniqueUpcs.add(m));
-            
-            await worker.terminate(); // Kill worker immediately after use
-            
-            // Small cooldown to let the UI thread breathe
-            await new Promise(r => setTimeout(r, 200));
-
-            progressBar.style.width = ((i + 1) / photoQueue.length) * 100 + "%";
-            uCount.textContent = uniqueUpcs.size;
+        // Load saved API key on startup if available
+        if (localStorage.getItem('gemini_api_key')) {
+            apiKeyInput.value = localStorage.getItem('gemini_api_key');
         }
 
-        if (uniqueUpcs.size > 0) generateOutput([...uniqueUpcs]);
-        updateStatus(`Finished! Found ${uniqueUpcs.size} unique codes.`, "#e8f5e9", "#1b5e20");
-        
-        photoQueue = [];
-        qCount.textContent = "0";
-        snapBtn.disabled = false;
-    });
-
-    function generateOutput(codes) {
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF();
-        let y = 20;
-        codes.forEach(code => {
-            let ean = code.padStart(12, '0').substring(0, 12);
-            const card = document.createElement('div');
-            card.className = 'barcode-card';
-            const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-            card.appendChild(svg);
-            gallery.appendChild(card);
-            try {
-                JsBarcode(svg, ean, { format: "EAN13", width: 2, height: 40, displayValue: true });
-                const canvas = document.getElementById('tempCanvas');
-                JsBarcode(canvas, ean, { format: "EAN13", width: 2, height: 40 });
-                if (y > 260) { pdf.addPage(); y = 20; }
-                pdf.addImage(canvas.toDataURL(), 'PNG', 20, y, 50, 25);
-                y += 35;
-            } catch (e) {}
+        // Dynamic ratio slider tracking implementation
+        ratioRange.addEventListener('input', (e) => {
+            ratioDisplay.textContent = `${e.target.value}g`;
+            calculateNutritionAndDose();
         });
-        pdf.save("Scanned_Barcodes.pdf");
-    }
 
-    function updateStatus(msg, bg, color) {
-        status.textContent = msg; status.style.display = 'block';
-        status.style.background = bg; status.style.color = color;
-    }
-</script>
-</body>
-</html>
+        // Dynamic portion size slider tracking implementation
+        portionRange.addEventListener('input', (e) => {
+            portionDisplay.textContent = `${e.target.value}g`;
+            calculateNutritionAndDose();
+        });
+
+        // Initialize and lock instance setup for the barcode camera engine
+        function initScanner() {
+            if (html5QrcodeScanner === null) {
+                html5QrcodeScanner = new Html5Qrcode("interactive-scanner");
+            }
+        }
+
+        startBtn.addEventListener('click', () => {
+            initScanner();
+            statusMessage.textContent = "Requesting system hardware permissions...";
+            statusMessage.className = "text-center text-xs text-amber-400 font-medium";
+
+            // Enforce standard phone environment architecture profile targeting rear cameras
+            html5QrcodeScanner.start(
+                { facingMode: "environment" },
+                {
+                    fps: 15,
+                    qrbox: (width, height) => {
+                        return { width: Math.floor(width * 0.85), height: Math.floor(height * 0.4) };
+                    }
+                },
+                onScanSuccess,
+                onScanFailure
+            )
+            .then(() => {
+                statusMessage.textContent = "Camera streaming live. Position barcode within target area.";
+                statusMessage.className = "text-center text-xs text-emerald-400 font-medium";
+            })
+            .catch(err => {
+                statusMessage.textContent = `Camera Initialization Error: ${err.message || err}`;
+                statusMessage.className = "text-center text-xs text-rose-400 font-semibold";
+            });
+        });
+
+        stopBtn.addEventListener('click', () => {
+            if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
+                html5QrcodeScanner.stop().then(() => {
+                    statusMessage.textContent = "Camera streams successfully safely terminated.";
+                    statusMessage.className = "text-center text-xs text-slate-500";
+                });
+            }
+        });
+
+        function triggerSuccessAudio() {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(1200, audioCtx.currentTime); 
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.08);
+        }
+
+        // Trigger loop executed on clean data retrieval from reader hardware
+        function onScanSuccess(decodedText, decodedResult) {
+            triggerSuccessAudio();
+            statusMessage.textContent = `Barcode isolated: ${decodedText}. Fetching database matrix...`;
+            statusMessage.className = "text-center text-xs text-amber-400 font-medium";
+            fetchProductData(decodedText);
+        }
+
+        function onScanFailure(error) {
+            // Pipeline continuous scanning errors silently
+        }
+
+        // Direct async background queries hitting public network resources
+        async function fetchProductData(barcode) {
+            const url = `https://world.openfoodfacts.org/api/v2/product/${barcode}.json`;
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("Server communication fault.");
+
+                const data = await response.json();
+
+                if (data.status === 1 || data.product) {
+                    const product = data.product;
+                    const nutriments = product.nutriments || {};
+
+                    baseFat100g = nutriments.fat_100g !== undefined ? parseFloat(nutriments.fat_100g) : (nutriments.fat_value !== undefined ? parseFloat(nutriments.fat_value) : 0);
+                    baseCarbs100g = nutriments.carbohydrates_100g !== undefined ? parseFloat(nutriments.carbohydrates_100g) : (nutriments.carbohydrates_value !== undefined ? parseFloat(nutriments.carbohydrates_value) : 0);
+                    baseProtein100g = nutriments.proteins_100g !== undefined ? parseFloat(nutriments.proteins_100g) : (nutriments.proteins_value !== undefined ? parseFloat(nutriments.proteins_value) : 0);
+
+                    labelProductName.textContent = product.product_name || "Unknown Product Profile";
+                    labelProductBarcode.textContent = `Barcode: ${barcode}`;
+
+                    sourceBadge.textContent = "Barcode Database";
+                    sourceBadge.className = "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider";
+
+                    calculateNutritionAndDose();
+                    
+                    resultCard.classList.remove('hidden');
+                    statusMessage.textContent = "Product analysis complete.";
+                    statusMessage.className = "text-center text-xs text-emerald-400 font-medium";
+                } else {
+                    statusMessage.textContent = `Product profile not found in open database registry [Code: ${barcode}].`;
+                    statusMessage.className = "text-center text-xs text-rose-400 font-semibold";
+                    resultCard.classList.add('hidden');
+                }
+            } catch (err) {
+                statusMessage.textContent = `Network Query Error: Check internet connection.`;
+                statusMessage.className = "text-center text-xs text-rose-400 font-semibold";
+            }
+        }
+
+        // Gemini AI Meal Query Handler
+        aiEstimateBtn.addEventListener('click', async () => {
+            const apiKey = apiKeyInput.value.trim();
+            const mealDescription = mealInput.value.trim();
+
+            if (!apiKey) {
+                statusMessage.textContent = "Missing Configuration: Please provide a valid Gemini API Key.";
+                statusMessage.className = "text-center text-xs text-rose-400 font-semibold";
+                return;
+            }
+            if (!mealDescription) {
+                statusMessage.textContent = "Input Required: Please describe what meal you are eating.";
+                statusMessage.className = "text-center text-xs text-rose-400 font-semibold";
+                return;
+            }
+
+            // Lock API key into storage for user convenience
+            localStorage.setItem('gemini_api_key', apiKey);
+
+            statusMessage.textContent = "Consulting Gemini AI engine models...";
+            statusMessage.className = "text-center text-xs text-purple-400 font-medium animate-pulse";
+            aiEstimateBtn.disabled = true;
+
+            // Target the ultra-fast gemini-1.5-flash endpoint configured for structured JSON output profiles
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            
+            const prompt = `You are a professional nutrition estimation engine for pancreatic enzyme therapy guidance. 
+            Analyze this full meal description carefully: "${mealDescription}".
+            Estimate the total macro nutritional values (in grams) contained across the whole complete meal.
+            Provide your response strictly as a JSON object matching this schema blueprint:
+            {
+                "meal_name": "A refined, clear title of the meal",
+                "estimated_fat_g": total_fat_as_number,
+                "estimated_carbs_g": total_carbohydrates_as_number,
+                "estimated_protein_g": total_protein_as_number
+            }
+            Do not include any markdown format blocks, backticks, or extra commentary. Return only the raw JSON object string.`;
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { responseMimeType: "application/json" }
+                    })
+                });
+
+                if (!response.ok) throw new Error("API validation rejection. Verify key viability.");
+
+                const resData = await response.json();
+                const jsonText = resData.candidates[0].content.parts[0].text;
+                const parsedNutrition = JSON.parse(jsonText);
+
+                // Set up the internal macro tracking variables (normalized to 100g total plate representation)
+                baseFat100g = parseFloat(parsedNutrition.estimated_fat_g || 0);
+                baseCarbs100g = parseFloat(parsedNutrition.estimated_carbs_g || 0);
+                baseProtein100g = parseFloat(parsedNutrition.estimated_protein_g || 0);
+
+                // Update UI elements 
+                labelProductName.textContent = parsedNutrition.meal_name || "AI Analyzed Meal";
+                labelProductBarcode.textContent = "Source: Gemini Intelligent 
